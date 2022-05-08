@@ -20,6 +20,8 @@ var EmbeddedAssets embed.FS
 var textWidget *widget.Text
 var rootContainer *widget.Container
 var game Game
+var timeBefore3 = time.Now().Unix()
+var timeBefore8 = time.Now().Unix()
 
 const (
 	GameWidth    = 700
@@ -27,6 +29,8 @@ const (
 	PlayerSpeed  = 10
 	SnakeHead    = 0
 	SnakeBody    = 1
+	SnakeFood    = 2
+	Shortener    = 3
 	StartingSize = 5
 )
 
@@ -45,13 +49,21 @@ func (g *Game) Update() error {
 	for i := 1; i < len(g.snake); i++ {
 		moveSnakeBody(g, i)
 	}
+	makeMoreItem()
+	for _, twoAM := range g.food {
+		checkFoodPos(g, twoAM)
+	}
+	for _, threeAM := range g.shortener {
+		checkShortPos(g, threeAM)
+	}
+
 	displayScore(g)
 	return nil
 }
 
 func (g Game) Draw(screen *ebiten.Image) {
 	sNum := len(g.snake)
-	for ind, _ := range g.snake {
+	for ind := range g.snake {
 		g.drawOps.GeoM.Reset()
 		g.drawOps.GeoM.Translate(float64(g.snake[(sNum-1)-ind].xloc), float64(g.snake[(sNum-1)-ind].yloc))
 		screen.DrawImage(g.snake[(sNum-1)-ind].pict, &g.drawOps)
@@ -188,6 +200,94 @@ func processPlayerInput(theGame *Game, snakeNum int) {
 func displayScore(theGame *Game) {
 	message := fmt.Sprintf("Score: %d", theGame.score)
 	textWidget.Label = message
+}
+
+func checkShortPos(theGame *Game, poison Sprite) {
+	for _, part := range theGame.snake {
+		if part.xloc >= poison.xloc &&
+			part.yloc >= poison.yloc &&
+			part.xloc <= poison.pict.Bounds().Size().X+poison.xloc &&
+			part.yloc <= poison.pict.Bounds().Size().Y+poison.yloc {
+			theGame.food = removeComSprite(&theGame.shortener, poison)
+			theGame.snake = removeComSprite(&theGame.snake, part)
+
+		} else if part.xloc+part.pict.Bounds().Size().X <=
+			poison.pict.Bounds().Size().X+poison.xloc &&
+			part.yloc+part.pict.Bounds().Size().Y <=
+				poison.pict.Bounds().Size().Y+poison.yloc &&
+			part.xloc+part.pict.Bounds().Size().X >=
+				poison.xloc &&
+			part.yloc+part.pict.Bounds().Size().Y >=
+				poison.yloc {
+			theGame.food = removeComSprite(&theGame.shortener, poison)
+			theGame.snake = removeComSprite(&theGame.snake, part)
+		}
+	}
+}
+
+func checkFoodPos(theGame *Game, edible Sprite) {
+	for _, part := range theGame.snake {
+		if part.xloc >= edible.xloc &&
+			part.yloc >= edible.yloc &&
+			part.xloc <= edible.pict.Bounds().Size().X+edible.xloc &&
+			part.yloc <= edible.pict.Bounds().Size().Y+edible.yloc {
+			theGame.food = removeComSprite(&theGame.food, edible)
+			theGame.score += 100
+			fmt.Println(theGame.food)
+			game.snake = append(game.snake, Sprite{
+				pict:      loadPNGImageFromEmbedded("snakeTail.png"),
+				xloc:      theGame.snake[0].xloc,
+				yloc:      theGame.snake[0].yloc,
+				dX:        0,
+				dY:        0,
+				SnakeType: SnakeBody,
+			})
+		} else if part.xloc+part.pict.Bounds().Size().X <=
+			edible.pict.Bounds().Size().X+edible.xloc &&
+			part.yloc+part.pict.Bounds().Size().Y <=
+				edible.pict.Bounds().Size().Y+edible.yloc &&
+			part.xloc+part.pict.Bounds().Size().X >=
+				edible.xloc &&
+			part.yloc+part.pict.Bounds().Size().Y >=
+				edible.yloc {
+			theGame.food = removeComSprite(&theGame.food, edible)
+			theGame.score += 100
+			fmt.Println(theGame.food)
+			game.snake = append(game.snake, Sprite{
+				pict:      loadPNGImageFromEmbedded("snakeTail.png"),
+				xloc:      theGame.snake[0].xloc,
+				yloc:      theGame.snake[0].yloc,
+				dX:        0,
+				dY:        0,
+				SnakeType: SnakeBody,
+			})
+		}
+	}
+}
+func makeMoreItem() {
+	current := time.Now().Unix()
+	if current == (timeBefore3 + 3) {
+		game.food = append(game.food, Sprite{
+			pict:      loadPNGImageFromEmbedded("snakeFood.png"),
+			xloc:      rand.Intn(GameWidth),
+			yloc:      rand.Intn(GameHeight),
+			dX:        0,
+			dY:        0,
+			SnakeType: SnakeFood,
+		})
+		timeBefore3 = time.Now().Unix()
+	} else if current == (timeBefore8 + 8) {
+		game.shortener = append(game.shortener, Sprite{
+			pict:      loadPNGImageFromEmbedded("shortener.png"),
+			xloc:      rand.Intn(GameWidth),
+			yloc:      rand.Intn(GameHeight),
+			dX:        0,
+			dY:        0,
+			SnakeType: Shortener,
+		})
+		timeBefore8 = time.Now().Unix()
+	}
+
 }
 
 func removeComSprite(sl *[]Sprite, s Sprite) []Sprite {
